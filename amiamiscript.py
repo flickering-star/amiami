@@ -16,19 +16,21 @@ db = client['amiami_database']
 collection = db['item_availability']
 
 # Function to send a message to Discord
-def send_discord_message(item):
+def send_discord_message(item, is_out_of_stock=False):
     if not DISCORD_WEBHOOK_URL:
         print("Error: DISCORD_WEBHOOK_URL environment variable is not set.")
         return
     
+    title = f"{item['productName']} - {'Out of Stock' if is_out_of_stock else item['availability']}"
+    
     embed = {
-        "title": item.productName,
-        "url": f"{item.productURL}",
-        "thumbnail": {"url": f"{item.imageURL}"},
+        "title": title,
+        "url": f"{item['productURL']}",
+        "thumbnail": {"url": f"{item['imageURL']}"},
         "fields": [
-            {"name": "Price", "value": f"¥{item.price}", "inline": True},
-            {"name": "Product Code", "value": f"{item.productCode}", "inline": True},
-            {"name": "Availability", "value": f"{item.availability}", "inline": True}
+            {"name": "Price", "value": f"¥{item['price']}", "inline": True},
+            {"name": "Product Code", "value": f"{item['productCode']}", "inline": True},
+            {"name": "Availability", "value": f"{item['availability']}", "inline": True}
         ]
     }
     
@@ -38,7 +40,7 @@ def send_discord_message(item):
     
     try:
         requests.post(DISCORD_WEBHOOK_URL, json=data)
-        print(f"Sent update for: {item.productName}")
+        print(f"Sent update for: {item['productName']}")
     except Exception as e:
         print(f"Failed to send Discord message: {str(e)}")
 
@@ -55,31 +57,51 @@ def amiami_search():
                         s_cate_tag=37,
                         s_maker_id=97)
                 
+                # Get all items in the database for this search term
+                db_items = list(collection.find({"searchTerm": line}))
+                found_items = set()
+                
                 for item in results.items:
                     item_id = item.productCode
                     is_available = item.availability
+                    found_items.add(item_id)
                     
                     # Check if the item exists in the database
-                    existing_item = collection.find_one({"productCode": item_id})
+                    existing_item = next((x for x in db_items if x['productCode'] == item_id), None)
                     
                     if existing_item:
                         if existing_item['availability'] != is_available:
-                            send_discord_message(item)
+                            send_discord_message(item.__dict__)
                             # Update the availability in the database
                             collection.update_one(
                                 {"productCode": item_id},
                                 {"$set": {"availability": is_available}}
                             )
                     else:
-                        if is_available:
-                            send_discord_message(item)
+                        if is_available != "Order Closed":
+                            send_discord_message(item.__dict__)
                             # Insert the new item into the database
                             collection.insert_one({
                                 "productCode": item_id,
-                                "availability": is_available
+                                "availability": is_available,
+                                "searchTerm": line,
+                                "productName": item.productName,
+                                "productURL": item.productURL,
+                                "imageURL": item.imageURL,
+                                "price": item.price
                             })
                 
-                print("\n")
+                # Check for items that are no longer available
+                for db_item in db_items:
+                    if db_item['productCode'] not in found_items and db_item['availability'] != "Order Closed":
+                        # Update item to "Order Closed" and send notification
+                        collection.update_one(
+                            {"productCode": db_item['productCode']},
+                            {"$set": {"availability": "Order Closed"}}
+                        )
+                        send_discord_message(db_item, is_out_of_stock=True)
+                
+                print(f"Finished processing search term: {line}")
             except Exception as e:
                 print(f"Error searching for '{line}': {str(e)}")
 
