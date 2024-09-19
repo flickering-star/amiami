@@ -1,0 +1,13 @@
+name: Console Message
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+
+jobs:
+  print-message:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Print message to console
+        run: echo "Hello! This message is printed every 5 minutes."
