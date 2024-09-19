@@ -1,13 +1,16 @@
-name: Console Message
-
-on:
+name: Test
+on: 
   schedule:
-    - cron: '*/5 * * * *'
+  - cron: '*/5 * * * *'
 
 jobs:
-  print-message:
+  job1:
+    name: Main
     runs-on: ubuntu-latest
 
     steps:
-      - name: Print message to console
-        run: echo "Hello! This message is printed every 5 minutes."
+    - name: Git checkout
+      uses: actions/checkout@v2
+      with: { ref: main }
+    - name: List files
+      run: ls
