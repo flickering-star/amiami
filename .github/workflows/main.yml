@@ -1,6 +1,7 @@
 name: search AmiAmi every 15 min
 
 on:
+  push:
   schedule:
     - cron: "*/15 * * * *"
 
