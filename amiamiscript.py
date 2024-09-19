@@ -1,24 +1,19 @@
 import amiami
 import os
 from curl_cffi import requests
-import json
+from pymongo import MongoClient
+from bson import ObjectId
 
 # Discord webhook URL
 DISCORD_WEBHOOK_URL = os.getenv('DISCORD_WEBHOOK_URL')
-# File to store item availability
-AVAILABILITY_FILE = 'item_availability.json'
 
-# Load availability from file
-def load_availability():
-    if os.path.exists(AVAILABILITY_FILE):
-        with open(AVAILABILITY_FILE, 'r') as file:
-            return json.load(file)
-    return {}
+# MongoDB connection string
+MONGO_CONNECTION_STRING = os.getenv('MONGO_CONNECTION_STRING')
 
-# Save availability to file
-def save_availability(data):
-    with open(AVAILABILITY_FILE, 'w') as file:
-        json.dump(data, file)
+# Connect to MongoDB
+client = MongoClient(MONGO_CONNECTION_STRING)
+db = client['amiami_database']
+collection = db['item_availability']
 
 # Function to send a message to Discord
 def send_discord_message(item):
@@ -48,7 +43,6 @@ def send_discord_message(item):
         print(f"Failed to send Discord message: {str(e)}")
 
 def amiami_search():
-    item_availability = load_availability()
     lines = get_search_terms()
     for line in lines:
         if line:  # Skip empty lines
@@ -65,19 +59,26 @@ def amiami_search():
                     item_id = item.productCode
                     is_available = item.availability
                     
-                    if item_id in item_availability:
-                        if item_availability[item_id] != is_available:
+                    # Check if the item exists in the database
+                    existing_item = collection.find_one({"productCode": item_id})
+                    
+                    if existing_item:
+                        if existing_item['availability'] != is_available:
                             send_discord_message(item)
+                            # Update the availability in the database
+                            collection.update_one(
+                                {"productCode": item_id},
+                                {"$set": {"availability": is_available}}
+                            )
                     else:
                         if is_available:
                             send_discord_message(item)
-                    
-                    # Update the availability in the dictionary
-                    item_availability[item_id] = is_available
+                            # Insert the new item into the database
+                            collection.insert_one({
+                                "productCode": item_id,
+                                "availability": is_available
+                            })
                 
-                # Save the updated availability status to file
-                save_availability(item_availability)
-
                 print("\n")
             except Exception as e:
                 print(f"Error searching for '{line}': {str(e)}")

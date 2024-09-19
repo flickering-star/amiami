@@ -23,9 +23,5 @@ jobs:
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           AMIAMI_SEARCH_TERMS: ${{ secrets.AMIAMI_SEARCH_TERMS }}
+          MONGO_CONNECTION_STRING: ${{ secrets.MONGO_CONNECTION_STRING }}
         run: python3 ./amiamiscript.py
-      - name: Upload results
-        uses: actions/upload-artifact@v3
-        with:
-          name: amiami-results
-          path: item_availability.json
