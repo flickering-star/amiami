@@ -1,9 +1,9 @@
-name: search AmiAmi every 15 min
+name: search AmiAmi every 10 min
 
 on:
   push:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "*/10 * * * *"
 
 jobs:
   example-job:
